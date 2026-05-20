@@ -51,6 +51,7 @@ def normalize_text(value: str, *, remove_feat_tail: bool = False) -> str:
         text = re.sub(pattern, " ", text, flags=re.IGNORECASE)
 
     text = text.replace("&", " and ")
+    text = re.sub(r"\bdan\b", "and", text)
     text = re.sub(r"[-_()\[\]{}.,!?'\"`~:;|/\\]+", " ", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
