@@ -94,6 +94,15 @@ class MainWindow(QMainWindow):
         "Similarity Score",
     ]
 
+    artist_table_columns = [
+        "Artist",
+        "Spotify Songs",
+        "Local Match",
+        "Match Rate",
+        "Status",
+        "Missing Tracks",
+    ]
+
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Localify Checker")
@@ -101,6 +110,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1040, 680)
 
         self.report_df = pd.DataFrame(columns=self.table_columns)
+        self.current_view_type = "tracks"
         self.worker_thread: QThread | None = None
         self.worker: AnalysisWorker | None = None
         self.stat_labels: dict[str, QLabel] = {}
@@ -280,6 +290,30 @@ class MainWindow(QMainWindow):
             stats_layout.addWidget(self._create_stat_card(card_title, key, caption))
         layout.addLayout(stats_layout)
 
+        # Navigation Tabs Segmented Control
+        nav_layout = QHBoxLayout()
+        nav_layout.setContentsMargins(0, 8, 0, 0)
+        nav_layout.setSpacing(10)
+        nav_layout.setAlignment(Qt.AlignLeft)
+
+        self.tab_tracks_btn = QPushButton("All Tracks")
+        self.tab_tracks_btn.setProperty("class", "NavTabButton")
+        self.tab_tracks_btn.setCursor(Qt.PointingHandCursor)
+        self.tab_tracks_btn.clicked.connect(lambda: self._set_active_tab("tracks"))
+
+        self.tab_artists_btn = QPushButton("By Artist")
+        self.tab_artists_btn.setProperty("class", "NavTabButton")
+        self.tab_artists_btn.setCursor(Qt.PointingHandCursor)
+        self.tab_artists_btn.clicked.connect(lambda: self._set_active_tab("artists"))
+
+        nav_layout.addWidget(self.tab_tracks_btn)
+        nav_layout.addWidget(self.tab_artists_btn)
+        layout.addLayout(nav_layout)
+
+        # Set initial active state styling
+        self.tab_tracks_btn.setProperty("active", "true")
+        self.tab_artists_btn.setProperty("active", "false")
+
         control_bar = QFrame()
         control_bar.setObjectName("ControlBar")
 
@@ -322,6 +356,7 @@ class MainWindow(QMainWindow):
         self.content_stack = QStackedWidget()
         self.empty_state = self._build_empty_state()
         self.table = self._build_table()
+        self.artist_table = self._build_artist_table()
 
         stack_shadow = QGraphicsDropShadowEffect(self.content_stack)
         stack_shadow.setBlurRadius(15)
@@ -331,6 +366,7 @@ class MainWindow(QMainWindow):
 
         self.content_stack.addWidget(self.empty_state)
         self.content_stack.addWidget(self.table)
+        self.content_stack.addWidget(self.artist_table)
         layout.addWidget(self.content_stack, 1)
 
         return workspace
@@ -624,6 +660,29 @@ class MainWindow(QMainWindow):
                 font-size: 11px;
                 font-weight: 500;
             }
+            QPushButton[class="NavTabButton"] {
+                background-color: transparent;
+                color: #b3b3b3;
+                border: 1px solid #282828;
+                border-radius: 15px;
+                padding: 6px 16px;
+                font-weight: 700;
+                font-size: 12px;
+                min-height: 20px;
+            }
+            QPushButton[class="NavTabButton"]:hover {
+                color: #ffffff;
+                border-color: #535353;
+            }
+            QPushButton[class="NavTabButton"][active="true"] {
+                background-color: #ffffff;
+                color: #000000;
+                border-color: #ffffff;
+            }
+            QPushButton[class="NavTabButton"][active="true"]:hover {
+                background-color: #e6e6e6;
+                color: #000000;
+            }
             QFrame#ControlBar {
                 background-color: #181818;
                 border: 1px solid #282828;
@@ -800,26 +859,48 @@ class MainWindow(QMainWindow):
         self.completion_ring.setValue(completeness)
 
     def _apply_filter(self) -> None:
-        if not hasattr(self, "table"):
+        if not hasattr(self, "table") or not hasattr(self, "artist_table"):
             return
 
-        filtered = self.report_df
-        status = self.status_filters.get(self.filter_combo.currentText())
         query = self.search_input.text().strip().lower()
 
-        if status:
-            filtered = filtered[filtered["Status"] == status]
+        if self.current_view_type == "tracks":
+            filtered = self.report_df
+            status = self.status_filters.get(self.filter_combo.currentText())
+            if status:
+                filtered = filtered[filtered["Status"] == status]
 
-        if query:
-            searchable_columns = ["Spotify Song", "Artist", "Local Match", "Folder"]
-            mask = pd.Series(False, index=filtered.index)
-            for column in searchable_columns:
-                mask = mask | filtered[column].astype(str).str.lower().str.contains(query, regex=False)
-            filtered = filtered[mask]
+            if query:
+                searchable_columns = ["Spotify Song", "Artist", "Local Match", "Folder"]
+                mask = pd.Series(False, index=filtered.index)
+                for column in searchable_columns:
+                    mask = mask | filtered[column].astype(str).str.lower().str.contains(query, regex=False)
+                filtered = filtered[mask]
 
-        self._populate_table(filtered)
-        self.result_count_label.setText(f"{len(filtered)} results")
-        self.content_stack.setCurrentWidget(self.table if not self.report_df.empty else self.empty_state)
+            self._populate_table(filtered)
+            self.result_count_label.setText(f"{len(filtered)} results")
+            self.content_stack.setCurrentWidget(self.table if not self.report_df.empty else self.empty_state)
+        else:
+            summary_df = self._get_artist_summary(self.report_df)
+            filtered = summary_df
+
+            status = self.status_filters.get(self.filter_combo.currentText())
+            if status:
+                status_map = {
+                    "MATCH": "COMPLETE",
+                    "POSSIBLE MATCH": "PARTIAL",
+                    "MISSING": "MISSING"
+                }
+                target_artist_status = status_map.get(status)
+                if target_artist_status:
+                    filtered = filtered[filtered["Status"] == target_artist_status]
+
+            if query:
+                filtered = filtered[filtered["Artist"].str.lower().str.contains(query, regex=False)]
+
+            self._populate_artist_table(filtered)
+            self.result_count_label.setText(f"{len(filtered)} artists")
+            self.content_stack.setCurrentWidget(self.artist_table if not self.report_df.empty else self.empty_state)
 
     def _populate_table(self, data: pd.DataFrame) -> None:
         self.table.setSortingEnabled(False)
@@ -873,6 +954,140 @@ class MainWindow(QMainWindow):
 
     def _style_row_item(self, item: QTableWidgetItem, status: str) -> None:
         item.setForeground(QColor("#ffffff"))
+
+    def _set_active_tab(self, view_type: str) -> None:
+        self.current_view_type = view_type
+        
+        self.tab_tracks_btn.setProperty("active", "true" if view_type == "tracks" else "false")
+        self.tab_artists_btn.setProperty("active", "true" if view_type == "artists" else "false")
+        
+        self.tab_tracks_btn.style().unpolish(self.tab_tracks_btn)
+        self.tab_tracks_btn.style().polish(self.tab_tracks_btn)
+        self.tab_artists_btn.style().unpolish(self.tab_artists_btn)
+        self.tab_artists_btn.style().polish(self.tab_artists_btn)
+        
+        if view_type == "tracks":
+            self.search_input.setPlaceholderText("Search song, artist, folder...")
+        else:
+            self.search_input.setPlaceholderText("Search artist...")
+            
+        self._apply_filter()
+
+    def _get_artist_summary(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            return pd.DataFrame(columns=self.artist_table_columns)
+            
+        artists_data = []
+        for artist_name, group in df.groupby("Artist"):
+            total_songs = len(group)
+            matched_songs = len(group[group["Status"] == "MATCH"])
+            possible_songs = len(group[group["Status"] == "POSSIBLE MATCH"])
+            
+            missing_titles = group[group["Status"] == "MISSING"]["Spotify Song"].tolist()
+            missing_str = ", ".join(missing_titles) if missing_titles else "-"
+            
+            rate = (matched_songs / total_songs) * 100 if total_songs > 0 else 0
+            
+            if matched_songs == total_songs:
+                status = "COMPLETE"
+            elif matched_songs == 0 and possible_songs == 0:
+                status = "MISSING"
+            else:
+                status = "PARTIAL"
+                
+            artists_data.append({
+                "Artist": artist_name,
+                "Spotify Songs": total_songs,
+                "Local Match": matched_songs,
+                "Match Rate": rate,
+                "Status": status,
+                "Missing Tracks": missing_str
+            })
+            
+        summary_df = pd.DataFrame(artists_data)
+        if not summary_df.empty:
+            summary_df = summary_df.sort_values(by="Match Rate", ascending=True)
+        return summary_df
+
+    def _build_artist_table(self) -> QTableWidget:
+        table = QTableWidget(0, len(self.artist_table_columns))
+        table.setHorizontalHeaderLabels(self.artist_table_columns)
+        table.setAlternatingRowColors(True)
+        table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        table.setSelectionMode(QAbstractItemView.SingleSelection)
+        table.setShowGrid(False)
+        table.verticalHeader().setVisible(False)
+        table.verticalHeader().setDefaultSectionSize(48)
+        table.horizontalHeader().setMinimumSectionSize(110)
+        
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
+        return table
+
+    def _populate_artist_table(self, data: pd.DataFrame) -> None:
+        self.artist_table.setSortingEnabled(False)
+        self.artist_table.setRowCount(0)
+
+        for row_index, row in data.reset_index(drop=True).iterrows():
+            self.artist_table.insertRow(row_index)
+            row_status = str(row.get("Status", ""))
+            
+            for column_index, column_name in enumerate(self.artist_table_columns):
+                value = row.get(column_name, "")
+
+                if column_name == "Status":
+                    badge = QLabel(row_status)
+                    badge.setAlignment(Qt.AlignCenter)
+
+                    if row_status == "COMPLETE":
+                        badge.setStyleSheet("color: #1DB954; background-color: rgba(29, 185, 84, 0.15); border: 1px solid rgba(29, 185, 84, 0.3); border-radius: 12px; font-weight: bold; padding: 4px 10px; font-size: 11px;")
+                    elif row_status == "PARTIAL":
+                        badge.setStyleSheet("color: #FFB636; background-color: rgba(255, 182, 54, 0.15); border: 1px solid rgba(255, 182, 54, 0.3); border-radius: 12px; font-weight: bold; padding: 4px 10px; font-size: 11px;")
+                    elif row_status == "MISSING":
+                        badge.setStyleSheet("color: #E91429; background-color: rgba(233, 20, 41, 0.15); border: 1px solid rgba(233, 20, 41, 0.3); border-radius: 12px; font-weight: bold; padding: 4px 10px; font-size: 11px;")
+                    else:
+                        badge.setStyleSheet("color: #B3B3B3; background-color: #282828; border-radius: 12px; font-weight: bold; padding: 4px 10px; font-size: 11px;")
+
+                    container = QWidget()
+                    container.setStyleSheet("background-color: transparent; border-bottom: 1px solid #282828;")
+
+                    lay = QHBoxLayout(container)
+                    lay.addWidget(badge)
+                    lay.setContentsMargins(6, 4, 6, 4)
+                    lay.setAlignment(Qt.AlignCenter)
+
+                    self.artist_table.setCellWidget(row_index, column_index, container)
+                    
+                elif column_name == "Match Rate":
+                    rate_val = float(value)
+                    item = QTableWidgetItem(f"{rate_val:.1f}%")
+                    item.setToolTip(f"{rate_val:.1f}% Match Rate")
+                    
+                    colors = {
+                        "COMPLETE": QColor("#1DB954"),
+                        "PARTIAL": QColor("#FFB636"),
+                        "MISSING": QColor("#E91429"),
+                    }
+                    item.setForeground(colors.get(row_status, QColor("#ffffff")))
+                    item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    self.artist_table.setItem(row_index, column_index, item)
+                    
+                else:
+                    item = QTableWidgetItem(str(value))
+                    item.setToolTip(str(value))
+                    item.setForeground(QColor("#ffffff"))
+                    
+                    if column_name in ["Spotify Songs", "Local Match"]:
+                        item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                        
+                    self.artist_table.setItem(row_index, column_index, item)
+
+        self.artist_table.setSortingEnabled(True)
 
     def _export_reports(self) -> None:
         if self.report_df.empty:
