@@ -103,8 +103,8 @@ def match_tracks(
             candidates = process.extract(
                 spotify_title_norm,
                 choices,
-                scorer=fuzz.token_sort_ratio,
-                limit=12,
+                scorer=fuzz.token_set_ratio,
+                limit=25,
             )
             for _match_text, _raw_score, local_index in candidates:
                 local_row = local_prepared.loc[local_index]
