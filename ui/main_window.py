@@ -8,6 +8,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QDialog,
     QFileDialog,
     QFrame,
     QGraphicsDropShadowEffect,
@@ -15,6 +16,8 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -24,6 +27,7 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -38,6 +42,144 @@ from ui.circular_progress import CircularProgressRing
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output"
+
+
+class ArtistDetailsDialog(QDialog):
+    def __init__(self, artist_name: str, artist_df: pd.DataFrame, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(f"Artist Details - {artist_name}")
+        self.resize(600, 500)
+        self.setMinimumSize(500, 400)
+        
+        # Apply parent's stylesheet
+        self.setStyleSheet(parent.styleSheet() if parent else "")
+        self.setObjectName("ArtistDetailsDialog")
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+        
+        # Header
+        header_layout = QHBoxLayout()
+        header_text = QVBoxLayout()
+        
+        title = QLabel(artist_name)
+        title.setStyleSheet("color: #ffffff; font-size: 22px; font-weight: 800;")
+        
+        total_songs = len(artist_df)
+        matched_songs = len(artist_df[artist_df["Status"] == "MATCH"])
+        possible_songs = len(artist_df[artist_df["Status"] == "POSSIBLE MATCH"])
+        missing_songs = len(artist_df[artist_df["Status"] == "MISSING"])
+        rate = (matched_songs / total_songs) * 100 if total_songs > 0 else 0
+        
+        subtitle = QLabel(f"{matched_songs} of {total_songs} tracks matched ({rate:.1f}% Match Rate)")
+        subtitle.setStyleSheet("color: #b3b3b3; font-size: 13px;")
+        
+        header_text.addWidget(title)
+        header_text.addWidget(subtitle)
+        header_layout.addLayout(header_text, 1)
+        
+        # Status badge
+        badge = QLabel()
+        badge.setAlignment(Qt.AlignCenter)
+        if matched_songs == total_songs:
+            badge.setText("COMPLETE")
+            badge.setStyleSheet("color: #1DB954; background-color: rgba(29, 185, 84, 0.15); border: 1px solid rgba(29, 185, 84, 0.3); border-radius: 12px; font-weight: bold; padding: 6px 12px; font-size: 11px;")
+        elif matched_songs == 0 and possible_songs == 0:
+            badge.setText("MISSING")
+            badge.setStyleSheet("color: #E91429; background-color: rgba(233, 20, 41, 0.15); border: 1px solid rgba(233, 20, 41, 0.3); border-radius: 12px; font-weight: bold; padding: 6px 12px; font-size: 11px;")
+        else:
+            badge.setText("PARTIAL")
+            badge.setStyleSheet("color: #FFB636; background-color: rgba(255, 182, 54, 0.15); border: 1px solid rgba(255, 182, 54, 0.3); border-radius: 12px; font-weight: bold; padding: 6px 12px; font-size: 11px;")
+        header_layout.addWidget(badge)
+        layout.addLayout(header_layout)
+        
+        # Tabs for Missing and Matched
+        tabs = QTabWidget()
+        tabs.setObjectName("DetailTabs")
+        
+        # 1. Missing Tracks Tab
+        missing_tab = QWidget()
+        missing_tab_layout = QVBoxLayout(missing_tab)
+        missing_tab_layout.setContentsMargins(10, 10, 10, 10)
+        
+        missing_list = QListWidget()
+        missing_list.setObjectName("DetailList")
+        missing_tracks = artist_df[artist_df["Status"] == "MISSING"]["Spotify Song"].tolist()
+        
+        if missing_tracks:
+            for track in missing_tracks:
+                item = QListWidgetItem(track)
+                item.setForeground(QColor("#E91429"))
+                missing_list.addItem(item)
+        else:
+            item = QListWidgetItem("No missing tracks! All songs are matched.")
+            item.setForeground(QColor("#1DB954"))
+            missing_list.addItem(item)
+            
+        missing_tab_layout.addWidget(missing_list)
+        tabs.addTab(missing_tab, f"Missing Tracks ({missing_songs})")
+        
+        # 2. Matched Tracks Tab
+        matched_tab = QWidget()
+        matched_tab_layout = QVBoxLayout(matched_tab)
+        matched_tab_layout.setContentsMargins(10, 10, 10, 10)
+        
+        matched_list = QListWidget()
+        matched_list.setObjectName("DetailList")
+        matched_tracks = artist_df[artist_df["Status"] == "MATCH"]
+        
+        if not matched_tracks.empty:
+            for _, r in matched_tracks.iterrows():
+                track_name = r["Spotify Song"]
+                local_match = r["Local Match"]
+                item = QListWidgetItem(f"{track_name} ➔ {local_match}")
+                item.setForeground(QColor("#1DB954"))
+                matched_list.addItem(item)
+        else:
+            item = QListWidgetItem("No matching tracks found in your local library.")
+            item.setForeground(QColor("#b3b3b3"))
+            matched_list.addItem(item)
+            
+        matched_tab_layout.addWidget(matched_list)
+        tabs.addTab(matched_tab, f"Matched Tracks ({matched_songs})")
+        
+        # 3. Possible Matches Tab
+        possible_tab = QWidget()
+        possible_tab_layout = QVBoxLayout(possible_tab)
+        possible_tab_layout.setContentsMargins(10, 10, 10, 10)
+        
+        possible_list = QListWidget()
+        possible_list.setObjectName("DetailList")
+        possible_tracks = artist_df[artist_df["Status"] == "POSSIBLE MATCH"]
+        
+        if not possible_tracks.empty:
+            for _, r in possible_tracks.iterrows():
+                track_name = r["Spotify Song"]
+                local_match = r["Local Match"]
+                score = r["Similarity Score"]
+                item = QListWidgetItem(f"{track_name} ➔ {local_match} ({score}% similarity)")
+                item.setForeground(QColor("#FFB636"))
+                possible_list.addItem(item)
+        else:
+            item = QListWidgetItem("No possible matches.")
+            item.setForeground(QColor("#b3b3b3"))
+            possible_list.addItem(item)
+            
+        possible_tab_layout.addWidget(possible_list)
+        tabs.addTab(possible_tab, f"Possible Matches ({possible_songs})")
+        
+        layout.addWidget(tabs)
+        
+        # Close button
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch(1)
+        close_btn = QPushButton("Close")
+        close_btn.setObjectName("SecondaryButton")
+        close_btn.setCursor(Qt.PointingHandCursor)
+        close_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(close_btn)
+        layout.addLayout(btn_layout)
 
 
 class AnalysisWorker(QObject):
@@ -629,6 +771,49 @@ class MainWindow(QMainWindow):
                 border: 1px solid #282828;
                 border-radius: 12px;
             }
+            QDialog#ArtistDetailsDialog {
+                background-color: #121212;
+            }
+            QTabWidget#DetailTabs::pane {
+                border: 1px solid #282828;
+                background-color: #181818;
+                border-radius: 8px;
+            }
+            QTabBar::tab {
+                background-color: #121212;
+                color: #b3b3b3;
+                border: 1px solid #282828;
+                border-bottom: none;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                padding: 8px 16px;
+                font-weight: 600;
+                font-size: 12px;
+            }
+            QTabBar::tab:selected {
+                background-color: #181818;
+                color: #ffffff;
+                border: 1px solid #282828;
+                border-bottom: 1px solid #181818;
+            }
+            QTabBar::tab:hover:!selected {
+                background-color: #282828;
+                color: #ffffff;
+            }
+            QListWidget#DetailList {
+                background-color: #181818;
+                border: none;
+                color: #ffffff;
+                font-size: 13px;
+                padding: 5px;
+            }
+            QListWidget#DetailList::item {
+                padding: 8px 12px;
+                border-bottom: 1px solid #242424;
+            }
+            QListWidget#DetailList::item:hover {
+                background-color: rgba(255, 255, 255, 0.05);
+            }
             QFrame#ProgressBox {
                 background-color: #181818;
                 border: 1px solid #282828;
@@ -1136,6 +1321,7 @@ class MainWindow(QMainWindow):
         table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
         table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
         table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
+        table.cellDoubleClicked.connect(self._on_artist_row_double_clicked)
         return table
 
     def _populate_artist_table(self, data: pd.DataFrame) -> None:
@@ -1175,7 +1361,7 @@ class MainWindow(QMainWindow):
                 elif column_name == "Match Rate":
                     rate_val = float(value)
                     item = QTableWidgetItem(f"{rate_val:.1f}%")
-                    item.setToolTip(f"{rate_val:.1f}% Match Rate")
+                    item.setToolTip(f"{rate_val:.1f}% Match Rate\n\nDouble click to view detailed tracks for this artist.")
                     
                     colors = {
                         "COMPLETE": QColor("#1DB954"),
@@ -1188,7 +1374,7 @@ class MainWindow(QMainWindow):
                     
                 else:
                     item = QTableWidgetItem(str(value))
-                    item.setToolTip(str(value))
+                    item.setToolTip(f"{value}\n\nDouble click to view detailed tracks for this artist.")
                     item.setForeground(QColor("#ffffff"))
                     
                     if column_name in ["Spotify Songs", "Local Match"]:
@@ -1197,6 +1383,19 @@ class MainWindow(QMainWindow):
                     self.artist_table.setItem(row_index, column_index, item)
 
         self.artist_table.setSortingEnabled(True)
+
+    def _on_artist_row_double_clicked(self, row: int, column: int) -> None:
+        artist_item = self.artist_table.item(row, 0)
+        if not artist_item:
+            return
+        artist_name = artist_item.text()
+        
+        if self.report_df.empty:
+            return
+        artist_df = self.report_df[self.report_df["Artist"] == artist_name]
+        
+        dialog = ArtistDetailsDialog(artist_name, artist_df, self)
+        dialog.exec()
 
     def _export_reports(self) -> None:
         if self.report_df.empty:
