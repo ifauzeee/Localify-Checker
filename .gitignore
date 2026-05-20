@@ -8,12 +8,12 @@ __pycache__/
 venv/
 env/
 
-# Local generated reports
-output/*.csv
+# Local generated reports and previews
+output/*
+!output/.gitkeep
 
 # OS / editor
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
-
