@@ -8,6 +8,22 @@ SVG_DEFINITIONS = {
     "spotify": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
         <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424c-.18.295-.563.387-.857.207-2.35-1.438-5.305-1.764-8.785-.97-.336.077-.67-.135-.746-.47-.077-.337.135-.67.472-.747 3.81-.87 7.078-.5 9.71 1.114.294.18.385.563.206.857zm1.225-2.72c-.226.367-.707.487-1.074.26-2.69-1.653-6.79-2.134-9.967-1.17-.413.125-.845-.107-.97-.52-.125-.413.107-.847.52-.972 3.637-1.104 8.156-.566 11.23 1.328.367.226.487.708.26 1.075zm.105-2.822C14.52 8.78 8.905 8.594 5.656 9.58c-.503.152-1.03-.135-1.182-.637-.152-.502.135-1.03.637-1.182 3.73-1.133 9.914-.92 13.823 1.4 0.454.27.604.858.336 1.31-.27.455-.858.605-1.31.336z"/>
     </svg>""",
+    "dashboard": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="9"></rect>
+        <rect x="14" y="3" width="7" height="5"></rect>
+        <rect x="14" y="12" width="7" height="9"></rect>
+        <rect x="3" y="16" width="7" height="5"></rect>
+    </svg>""",
+    "music-list": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="8" y1="6" x2="21" y2="6"></line>
+        <line x1="8" y1="12" x2="21" y2="12"></line>
+        <line x1="8" y1="18" x2="21" y2="18"></line>
+        <circle cx="4" cy="6" r="1"></circle>
+        <circle cx="4" cy="12" r="10" fill="none"></circle>
+        <path d="M3 12h2M3 18h2"/>
+        <line x1="3.5" y1="12" x2="4.5" y2="12"></line>
+        <line x1="3.5" y1="18" x2="4.5" y2="18"></line>
+    </svg>""",
     "folder": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
     </svg>""",

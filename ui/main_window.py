@@ -167,6 +167,34 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(brand_layout)
 
+        # Navigation Menu
+        nav_menu = QFrame()
+        nav_menu.setObjectName("SidebarNavMenu")
+        nav_menu_layout = QVBoxLayout(nav_menu)
+        nav_menu_layout.setContentsMargins(0, 8, 0, 8)
+        nav_menu_layout.setSpacing(6)
+
+        self.nav_dash_btn = QPushButton("  Dashboard")
+        self.nav_dash_btn.setIcon(get_svg_icon("dashboard", "#b3b3b3", 16))
+        self.nav_dash_btn.setProperty("class", "SidebarNavButton")
+        self.nav_dash_btn.setCursor(Qt.PointingHandCursor)
+        self.nav_dash_btn.clicked.connect(lambda: self._set_active_page("dashboard"))
+
+        self.nav_search_btn = QPushButton("  Search & Track")
+        self.nav_search_btn.setIcon(get_svg_icon("music-list", "#b3b3b3", 16))
+        self.nav_search_btn.setProperty("class", "SidebarNavButton")
+        self.nav_search_btn.setCursor(Qt.PointingHandCursor)
+        self.nav_search_btn.clicked.connect(lambda: self._set_active_page("search"))
+
+        nav_menu_layout.addWidget(self.nav_dash_btn)
+        nav_menu_layout.addWidget(self.nav_search_btn)
+
+        layout.addWidget(nav_menu)
+
+        # Set initial active styling
+        self.nav_dash_btn.setProperty("active", "true")
+        self.nav_search_btn.setProperty("active", "false")
+
         # Drag Drop Zones
         self.local_drop_zone = DragDropZone("Local Library CSV")
         self.spotify_drop_zone = DragDropZone("Spotify Export CSV")
@@ -226,9 +254,19 @@ class MainWindow(QMainWindow):
     def _build_workspace(self) -> QWidget:
         workspace = QWidget()
         workspace.setObjectName("Workspace")
-        layout = QVBoxLayout(workspace)
-        layout.setContentsMargins(28, 24, 28, 24)
-        layout.setSpacing(18)
+        main_layout = QVBoxLayout(workspace)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        self.workspace_stack = QStackedWidget()
+
+        # ==========================================
+        # PAGE 1: DASHBOARD PAGE
+        # ==========================================
+        self.dash_page = QWidget()
+        dash_layout = QVBoxLayout(self.dash_page)
+        dash_layout.setContentsMargins(28, 24, 28, 24)
+        dash_layout.setSpacing(20)
 
         header_layout = QHBoxLayout()
         header_text = QVBoxLayout()
@@ -274,7 +312,7 @@ class MainWindow(QMainWindow):
 
         header_layout.addLayout(header_text, 1)
         header_layout.addWidget(self.completion_card)
-        layout.addLayout(header_layout)
+        dash_layout.addLayout(header_layout)
 
         # 5 statistics cards in a single row layout
         stats_layout = QHBoxLayout()
@@ -288,11 +326,47 @@ class MainWindow(QMainWindow):
         ]
         for card_title, key, caption in cards:
             stats_layout.addWidget(self._create_stat_card(card_title, key, caption))
-        layout.addLayout(stats_layout)
+        dash_layout.addLayout(stats_layout)
 
-        # Navigation Tabs Segmented Control
+        # Welcome instruction card
+        self.dash_welcome = QFrame()
+        self.dash_welcome.setObjectName("WelcomeCard")
+        welcome_layout = QVBoxLayout(self.dash_welcome)
+        welcome_layout.setContentsMargins(24, 24, 24, 24)
+        welcome_layout.setSpacing(12)
+
+        welcome_title = QLabel("Selamat Datang di Localify Checker")
+        welcome_title.setStyleSheet("color: #ffffff; font-size: 16px; font-weight: bold;")
+
+        welcome_desc = QLabel(
+            "Aplikasi pencocokan pustaka lagu lokal dengan playlist/export Spotify Anda.\n\n"
+            "Petunjuk Penggunaan:\n"
+            "1. Masukkan file CSV Pustaka Lokal (Local Library CSV) di panel kiri.\n"
+            "2. Masukkan file CSV Export Spotify (Spotify Export CSV) di panel kiri.\n"
+            "3. Klik tombol 'Analyze' untuk memproses pencocokan lagu.\n"
+            "4. Buka menu 'Search & Track' untuk mencari lagu dan artis secara mendetail."
+        )
+        welcome_desc.setStyleSheet("color: #b3b3b3; font-size: 13px; line-height: 1.6;")
+        welcome_layout.addWidget(welcome_title)
+        welcome_layout.addWidget(welcome_desc)
+        dash_layout.addWidget(self.dash_welcome)
+        dash_layout.addStretch(1)
+
+        # ==========================================
+        # PAGE 2: SEARCH / TRACKS PAGE
+        # ==========================================
+        self.search_page = QWidget()
+        search_page_layout = QVBoxLayout(self.search_page)
+        search_page_layout.setContentsMargins(28, 24, 28, 24)
+        search_page_layout.setSpacing(16)
+
+        search_header = QLabel("Search & Track")
+        search_header.setStyleSheet("color: #ffffff; font-size: 24px; font-weight: bold;")
+        search_page_layout.addWidget(search_header)
+
+        # Navigation Tabs Segmented Control (All Tracks / By Artist)
         nav_layout = QHBoxLayout()
-        nav_layout.setContentsMargins(0, 8, 0, 0)
+        nav_layout.setContentsMargins(0, 4, 0, 0)
         nav_layout.setSpacing(10)
         nav_layout.setAlignment(Qt.AlignLeft)
 
@@ -308,7 +382,7 @@ class MainWindow(QMainWindow):
 
         nav_layout.addWidget(self.tab_tracks_btn)
         nav_layout.addWidget(self.tab_artists_btn)
-        layout.addLayout(nav_layout)
+        search_page_layout.addLayout(nav_layout)
 
         # Set initial active state styling
         self.tab_tracks_btn.setProperty("active", "true")
@@ -351,7 +425,7 @@ class MainWindow(QMainWindow):
         control_layout.addWidget(QLabel("Status"))
         control_layout.addWidget(self.filter_combo)
         control_layout.addWidget(self.result_count_label)
-        layout.addWidget(control_bar)
+        search_page_layout.addWidget(control_bar)
 
         self.content_stack = QStackedWidget()
         self.empty_state = self._build_empty_state()
@@ -367,7 +441,18 @@ class MainWindow(QMainWindow):
         self.content_stack.addWidget(self.empty_state)
         self.content_stack.addWidget(self.table)
         self.content_stack.addWidget(self.artist_table)
-        layout.addWidget(self.content_stack, 1)
+        search_page_layout.addWidget(self.content_stack, 1)
+
+        # ==========================================
+        # WORKSPACE MAIN STACK SETUP
+        # ==========================================
+        self.workspace_stack.addWidget(self.dash_page)
+        self.workspace_stack.addWidget(self.search_page)
+
+        main_layout.addWidget(self.workspace_stack, 1)
+
+        # Show Dashboard initially
+        self.workspace_stack.setCurrentWidget(self.dash_page)
 
         return workspace
 
@@ -520,6 +605,29 @@ class MainWindow(QMainWindow):
             QLabel#SidebarFooter {
                 color: #7f7f7f;
                 font-size: 11px;
+            }
+            QPushButton[class="SidebarNavButton"] {
+                background-color: transparent;
+                color: #b3b3b3;
+                border: none;
+                border-radius: 8px;
+                padding: 10px 14px;
+                font-weight: 600;
+                font-size: 13px;
+                text-align: left;
+            }
+            QPushButton[class="SidebarNavButton"]:hover {
+                background-color: rgba(255, 255, 255, 0.05);
+                color: #ffffff;
+            }
+            QPushButton[class="SidebarNavButton"][active="true"] {
+                background-color: rgba(255, 255, 255, 0.1);
+                color: #ffffff;
+            }
+            QFrame#WelcomeCard {
+                background-color: #181818;
+                border: 1px solid #282828;
+                border-radius: 12px;
             }
             QFrame#ProgressBox {
                 background-color: #181818;
@@ -818,6 +926,7 @@ class MainWindow(QMainWindow):
         self._apply_filter()
         self.export_button.setEnabled(not self.report_df.empty)
         self.progress_label.setText("Analysis complete")
+        self._set_active_page("search")
 
     @Slot(str)
     def _on_analysis_error(self, message: str) -> None:
@@ -1122,3 +1231,17 @@ class MainWindow(QMainWindow):
             "missing": 0,
             "completeness": 0,
         }
+
+    def _set_active_page(self, page_name: str) -> None:
+        self.nav_dash_btn.setProperty("active", "true" if page_name == "dashboard" else "false")
+        self.nav_search_btn.setProperty("active", "true" if page_name == "search" else "false")
+        
+        self.nav_dash_btn.style().unpolish(self.nav_dash_btn)
+        self.nav_dash_btn.style().polish(self.nav_dash_btn)
+        self.nav_search_btn.style().unpolish(self.nav_search_btn)
+        self.nav_search_btn.style().polish(self.nav_search_btn)
+        
+        if page_name == "dashboard":
+            self.workspace_stack.setCurrentWidget(self.dash_page)
+        else:
+            self.workspace_stack.setCurrentWidget(self.search_page)
